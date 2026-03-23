@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Haventem Elite | Dosya Paneli</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+    <style>
+        :root { --primary: #6366f1; --bg: #0f172a; --card: rgba(30, 41, 59, 0.7); }
+        body { background-color: var(--bg); color: white; font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; padding-top: 70px; }
+        
+        /* NAVBAR */
+        nav { position: fixed; top: 0; width: 100%; height: 70px; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(12px); display: flex; justify-content: space-between; align-items: center; padding: 0 5%; box-sizing: border-box; z-index: 1000; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .tabs { display: flex; gap: 30px; }
+        .tab { cursor: pointer; font-weight: 600; opacity: 0.5; transition: 0.3s; padding: 10px 0; }
+        .tab.active { opacity: 1; color: var(--primary); border-bottom: 2px solid var(--primary); }
+        
+        /* İÇERİK */
+        .container { max-width: 650px; margin: 20px auto; padding: 0 20px; }
+        .section { display: none; }
+        .section.active { display: block; }
+        
+        .glass { background: var(--card); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 30px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+        
+        /* FORM ELEMANLARI */
+        input[type="text"] { width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; outline: none; }
+        input[type="text"]:focus { border-color: var(--primary); }
+        
+        #drop-zone { border: 2px dashed var(--primary); border-radius: 15px; padding: 40px; text-align: center; margin-bottom: 20px; transition: 0.3s; background: rgba(99, 102, 241, 0.05); cursor: pointer; }
+        #drop-zone:hover { background: rgba(99, 102, 241, 0.1); }
+
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; background: var(--primary); color: white; font-size: 16px; transition: 0.2s; }
+        .btn:active { transform: scale(0.98); }
+
+        /* DOSYA KARTLARI */
+        .file-card { background: rgba(255,255,255,0.03); margin-bottom: 12px; padding: 15px; border-radius: 15px; display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(255,255,255,0.05); transition: 0.3s; }
+        .file-card:hover { transform: translateY(-3px); background: rgba(255,255,255,0.06); }
+        .btn-action { padding: 8px; border-radius: 8px; text-decoration: none; color: white; border: none; cursor: pointer; font-size: 14px; margin-left: 5px; }
+
+        /* MODAL & ALERT */
+        .alert { background: #10b981; color: white; padding: 15px; border-radius: 12px; text-align: center; margin-bottom: 20px; }
+        #login-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #1e293b; padding: 30px; border-radius: 20px; border: 1px solid var(--primary); z-index: 2000; width: 300px; }
+    </style>
+</head>
+<body>
+
+<nav>
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab(event, 'upload-page')">YÜKLE</div>
+        <div class="tab" onclick="switchTab(event, 'files-page')">DOSYALAR</div>
+    </div>
+    <div style="font-size: 14px;">
+        <% if (!isAdmin) { %>
+            <span onclick="toggleLogin(true)" style="cursor:pointer; opacity: 0.7;">🔑 Yönetici</span>
+        <% } else { %>
+            <span style="color: #fbbf24;">Admin Aktif</span> | <a href="/logout" style="color: #ef4444; text-decoration: none;">Çıkış</a>
+        <% } %>
+    </div>
+</nav>
+
+<div class="container">
+    <% if (msg) { %>
+        <div class="alert animate__animated animate__fadeIn"><%= msg %></div>
+    <% } %>
+
+    <div id="upload-page" class="section active animate__animated animate__fadeIn">
+        <div class="glass">
+            <h2 style="margin-top: 0;">Yeni Dosya Paylaş</h2>
+            <form action="/upload" method="POST" enctype="multipart/form-data">
+                <input type="text" name="sender" placeholder="Adın Soyadın Numaran" required>
+                <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+                    <div style="font-size: 40px;">📂</div>
+                    <p id="file-name">Dosyayı buraya sürükle veya tıkla</p>
+                    <input type="file" name="file" id="file-input" hidden required onchange="updateName()">
+                </div>
+                <button type="submit" class="btn">Paylaşımı Gönder</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="files-page" class="section animate__animated animate__fadeIn">
+        <h2 style="margin-top: 0;">Paylaşılan Dosyalar</h2>
+        <% if (files.length === 0) { %>
+            <p style="text-align: center; opacity: 0.5; margin-top: 50px;">Henüz hiç dosya yok.</p>
+        <% } %>
+        <% files.forEach(file => { %>
+            <div class="file-card">
+                <div style="overflow: hidden; margin-right: 10px;">
+                    <div style="font-weight: bold; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;"><%= file.name %></div>
+                    <small style="opacity: 0.5;"><%= file.sender %> • <%= file.size %></small>
+                </div>
+                <div style="display: flex; flex-shrink: 0;">
+                    <a href="/uploads/<%= file.path %>" target="_blank" class="btn-action" style="background: #10b981;">👁️</a>
+                    <a href="/uploads/<%= file.path %>" download="<%= file.name %>" class="btn-action" style="background: var(--primary);">⬇️</a>
+                    
+                    <% if (isAdmin || file.owner === myId) { %>
+                        <form action="/delete/<%= file.id %>" method="POST" style="margin: 0;">
+                            <button type="submit" class="btn-action" style="background: #ef4444;">🗑️</button>
+                        </form>
+                    <% } %>
+
+                    <% if (isAdmin) { %>
+                        <button onclick="editFile('<%= file.id %>', '<%= file.name %>')" class="btn-action" style="background: #f39c12;">✎</button>
+                    <% } %>
+                </div>
+            </div>
+        <% }) %>
+    </div>
+</div>
+
+<div id="login-modal" class="animate__animated animate__zoomIn">
+    <h3 style="margin-top: 0; text-align: center;">Giriş Yap</h3>
+    <form action="/login" method="POST">
+        <input type="text" name="user" placeholder="Kullanıcı Adı" required>
+        <input type="password" name="pass" placeholder="Şifre" required>
+        <button type="submit" class="btn">Giriş Yap</button>
+        <button type="button" onclick="toggleLogin(false)" class="btn" style="background: none; margin-top: 10px;">Vazgeç</button>
+    </form>
+</div>
+
+<script>
+    function switchTab(e, id) {
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        e.target.classList.add('active');
+    }
+
+    function updateName() {
+        const input = document.getElementById('file-input');
+        document.getElementById('file-name').innerText = input.files[0].name;
+    }
+
+    function toggleLogin(show) {
+        document.getElementById('login-modal').style.display = show ? 'block' : 'none';
+    }
+
+    function editFile(id, oldName) {
+        const n = prompt("Yeni dosya adı:", oldName);
+        if (n) {
+            const f = document.createElement('form');
+            f.method='POST'; f.action='/edit/'+id;
+            const i = document.createElement('input');
+            i.name='newName'; i.value=n;
+            f.appendChild(i); document.body.appendChild(f); f.submit();
+        }
+    }
+
+    // Sürükle Bırak
+    const dz = document.getElementById('drop-zone');
+    dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.style.borderColor = '#fff'; });
+    dz.addEventListener('dragleave', () => { dz.style.borderColor = 'var(--primary)'; });
+    dz.addEventListener('drop', (e) => {
+        e.preventDefault();
+        document.getElementById('file-input').files = e.dataTransfer.files;
+        updateName();
+        dz.style.borderColor = 'var(--primary)';
+    });
+</script>
+</body>
+</html>
